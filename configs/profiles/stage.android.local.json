@@ -1,0 +1,24 @@
+{
+  "run_profile": "stage.android.local",
+  "platform": "android",
+  "execution": "local",
+  "apk": {
+    "base_folder": "C:/Users/akash.naykude/source/Shoppix android Build APKs",
+    "latest_subfolder_by": "modified_time",
+    "fixed_apk_name": "Shoppix.apk"
+  },
+  "capabilities": {
+    "platformName": "Android",
+    "appium:automationName": "UiAutomator2",
+    "appium:deviceName": "Android",
+    "appium:udid": "7342ffa0",
+    "appium:platformVersion": "16",
+    "appium:appPackage": "com.kantarworldpanel.shoppix",
+    "appium:appActivity": "com.candyspace.kantar.feature.launcher.LauncherActivity",
+    "appium:noReset": true,
+    "appium:newCommandTimeout": 300,
+    "appium:uiautomator2ServerLaunchTimeout": 60000,
+    "appium:uiautomator2ServerInstallTimeout": 60000
+  },
+  "appium_server": "http://127.0.0.1:4723"
+}

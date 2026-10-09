@@ -1,0 +1,17 @@
+{
+  "valid_user": {
+    "email_env": "SHOPPIX_LOGIN_EMAIL",
+    "password_env": "SHOPPIX_LOGIN_PASSWORD"
+  },
+  "invalid_user": {
+    "email": "invalid.user@example.com",
+    "password": "WrongPass@123"
+  },
+  "expected": {
+    "invalid_title": "Sorry",
+    "invalid_messages": [
+      "Incorrect email or password entered. Please try again.",
+      "Please check your password"
+    ]
+  }
+}

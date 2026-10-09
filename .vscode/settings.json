@@ -1,0 +1,11 @@
+{
+  "python.defaultInterpreterPath": "C:/Users/akash.naykude/AppData/Local/Programs/Python/Python314/python.exe",
+  "python.envFile": "${workspaceFolder}/.env",
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": [
+    "Steps"
+  ],
+  "python.testing.cwd": "${workspaceFolder}",
+  "python.testing.autoTestDiscoverOnSaveEnabled": true
+}

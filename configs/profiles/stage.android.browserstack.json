@@ -1,0 +1,16 @@
+{
+  "run_profile": "stage.android.browserstack",
+  "platform": "android",
+  "execution": "browserstack",
+  "app": "bs://f9e3fa439319e4d9758d4160dfe46ca3279d340c",
+  "capabilities": {
+    "platformName": "Android",
+    "appium:automationName": "UiAutomator2",
+    "appium:deviceName": "Samsung Galaxy S23",
+    "appium:platformVersion": "14.0"
+  },
+  "browserstack": {
+    "buildName": "Shoppix Phase 1",
+    "projectName": "Shoppix Mobile Automation"
+  }
+}
