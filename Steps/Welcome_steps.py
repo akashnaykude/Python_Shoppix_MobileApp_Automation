@@ -227,6 +227,12 @@ def facebook_login_flow_should_be_displayed(driver):
 	if state == "welcome":
 		assert not page.is_welcome_visible(timeout=1), "Facebook login flow did not open"
 
+	# If no dialog and flow opened, come back once to keep next tests in stable state.
+	try:
+		driver.back()
+	except Exception:
+		pass
+
 
 @then("email registration flow should be displayed")
 def email_registration_flow_should_be_displayed(driver):
