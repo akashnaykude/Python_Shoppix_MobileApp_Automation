@@ -61,6 +61,7 @@ class LoginPage:
     PASSWORD_REQUIRED_ERROR = (AppiumBy.XPATH, "//android.widget.TextView[contains(@text, 'Please enter a password')]" )
     INVALID_EMAIL_ERROR = (AppiumBy.XPATH, "//android.widget.TextView[contains(@text, 'valid email') or contains(@text, 'Invalid')]" )
     OOPS_TITLE = (AppiumBy.XPATH, "//android.widget.TextView[@text='Oops']")
+    CONNECTION_ERROR_TITLE = (AppiumBy.XPATH, "//android.widget.TextView[@text='Connection Error']")
     OOPS_OK = (AppiumBy.XPATH, "//android.widget.TextView[@text='OK']")
 
     def __init__(self, driver):
@@ -80,17 +81,32 @@ class LoginPage:
             return False
 
     def navigate_to_login_if_needed(self):
-        if self._is_visible(self.WELCOME_TITLE, timeout=6):
+        # Clear any blocking dialog first so taps are not swallowed by a modal.
+        self.dismiss_oops_if_present()
+
+        # Route by one source snapshot to avoid serial 6s+6s+6s waits.
+        try:
+            src = (self.driver.page_source or "").lower()
+        except Exception:
+            src = ""
+
+        if "welcome back!" in src or "enter your email" in src:
             return
 
-        if self._is_visible(self.WELCOME_LOGIN_CTA, timeout=6):
-            self._find_clickable(self.WELCOME_LOGIN_CTA, timeout=8).click()
-            self._find(self.WELCOME_TITLE, timeout=15)
+        if "login as existing user" in src or "let's get started" in src or "lets get started" in src:
+            try:
+                self._find_clickable(self.WELCOME_LOGIN_CTA, timeout=5).click()
+                self._find(self.WELCOME_TITLE, timeout=10)
+                return
+            except Exception:
+                pass
+
+        if self._is_visible(self.WELCOME_TITLE, timeout=2):
             return
 
-        if self._is_visible(self.LETS_GET_STARTED, timeout=6):
-            self._find_clickable(self.LETS_GET_STARTED, timeout=5).click()
-            self._find(self.WELCOME_TITLE, timeout=15)
+        if self._is_visible(self.WELCOME_LOGIN_CTA, timeout=3):
+            self._find_clickable(self.WELCOME_LOGIN_CTA, timeout=4).click()
+            self._find(self.WELCOME_TITLE, timeout=10)
 
     def is_login_screen_visible(self, timeout: int = 10) -> bool:
         return self._is_visible(self.WELCOME_TITLE, timeout=timeout)
@@ -408,10 +424,19 @@ class LoginPage:
         return False
 
     def dismiss_oops_if_present(self) -> bool:
-        if not self._is_visible(self.OOPS_TITLE, timeout=2):
+        # Fast source check so the common no-dialog case stays cheap; also covers
+        # the 'Connection Error' dialog shown by the Facebook/network flow.
+        try:
+            src = (self.driver.page_source or "").lower()
+        except Exception:
+            src = ""
+        if "oops" not in src and "connection error" not in src:
             return False
-        self._find_clickable(self.OOPS_OK, timeout=4).click()
-        return True
+        try:
+            self._find_clickable(self.OOPS_OK, timeout=3).click()
+            return True
+        except Exception:
+            return False
 
     def has_basic_accessibility_labels(self) -> bool:
         src = self.driver.page_source or ""

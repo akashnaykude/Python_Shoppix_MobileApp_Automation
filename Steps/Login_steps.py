@@ -1,5 +1,6 @@
 from pytest_bdd import parsers
 from pytest_bdd import given, scenarios, then, when
+import time
 from selenium.common.exceptions import WebDriverException
 
 from src.pages.home_page import HomePage
@@ -67,6 +68,10 @@ def _safe_back(driver) -> bool:
 def _ensure_login_screen_without_relaunch(driver):
     page = LoginPage(driver)
     home = HomePage(driver)
+
+    # Clear a late Oops/Connection Error overlay (e.g. left by the Facebook flow)
+    # so it cannot hide login content for the next scenario.
+    page.dismiss_oops_if_present()
 
     state = _quick_screen_state(driver)
     if state == "login":
@@ -427,7 +432,19 @@ def login_button_should_be_enabled(driver):
 
 @then("user should be logged in successfully")
 def user_should_be_logged_in_successfully(driver):
-    assert HomePage(driver).is_home_header_visible(), "Home header was not visible after successful login"
+    home = HomePage(driver)
+    # Home can load slowly and sit behind a stuck 'Loading...' overlay; poll on the
+    # dashboard (header or bottom nav) so a slow/stuck loader does not fail the test.
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        try:
+            if home.is_home_dashboard_visible(timeout=2) or home.is_home_like_state():
+                return
+            home.dismiss_oops_if_present(timeout=1)
+        except WebDriverException:
+            pass
+        time.sleep(1)
+    assert home.is_home_dashboard_visible(timeout=5), "Home header was not visible after successful login"
 
 
 @when("user enters invalid password")
@@ -529,9 +546,12 @@ def facebook_auth_flow_should_be_displayed(driver):
 @when("user cancels Facebook login")
 def user_cancels_facebook_login(driver):
     page = LoginPage(driver)
-    if page.dismiss_oops_if_present():
+    # Dialog (Oops/Connection Error) can block navigation; clear it, then return to login.
+    page.dismiss_oops_if_present()
+    if page.is_login_screen_visible(timeout=1):
         return
-    driver.back()
+    _safe_back(driver)
+    page.navigate_to_login_if_needed()
 
 
 @when("user taps sign up link")

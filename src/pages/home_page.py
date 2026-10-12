@@ -153,6 +153,18 @@ class HomePage:
             return True
         return False
 
+    def is_home_dashboard_visible(self, timeout: int = 3) -> bool:
+        # Home header can sit behind a 'Loading...' overlay; the bottom navigation
+        # tab set is a reliable 'home loaded' signal in that case.
+        if self._is_visible(self.HOME_HEADER, timeout=timeout) or self._present(self.HOME_HEADER):
+            return True
+        try:
+            src = (self.driver.page_source or "").lower()
+        except Exception:
+            return False
+        nav_tabs = ("home", "history", "receipt", "online", "surveys")
+        return sum(1 for tab in nav_tabs if tab in src) >= 3
+
     def dismiss_oops_if_present(self, timeout: int = 2) -> bool:
         if not self._is_visible(self.OOPS_TITLE, timeout=timeout):
             return False

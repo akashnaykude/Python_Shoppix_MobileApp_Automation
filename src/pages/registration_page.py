@@ -813,12 +813,16 @@ class RegistrationPage:
         self._find_clickable(self.FACEBOOK_BUTTON, timeout=8).click()
 
     def is_email_format_error_visible(self) -> bool:
+        # Tapping Continue scrolls to the bottom; the email error sits at the top.
+        self.restore_registration_top(timeout=3)
         if self._is_visible(self.EMAIL_INVALID_ERROR, timeout=2):
             return True
         src = (self.driver.page_source or "").lower()
         return "invalid" in src and "email" in src
 
     def is_email_required_error_visible(self) -> bool:
+        # Tapping Continue scrolls to the bottom; the email error sits at the top.
+        self.restore_registration_top(timeout=3)
         if self._is_visible(self.EMAIL_REQUIRED_ERROR, timeout=2):
             return True
         src = (self.driver.page_source or "").lower()

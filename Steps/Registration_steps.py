@@ -15,6 +15,56 @@ CREATE_PASSWORD = "Test@123"
 WEAK_PASSWORD = "weak"
 INVALID_EMAIL = "invalid-email"
 
+REGISTRATION_SKIPPED_MESSAGE = (
+    "Registration.feature scenarios were skipped because Waiting list is enabled in manage shoppix for this "
+    "environment or check Threshold of Live Buyers in manage shoppix."
+)
+
+# Session-scoped environment classification so only the first scenario pays the
+# detection cost; later scenarios skip (or proceed) instantly.
+_ENV_MODE: str | None = None  # "waitlist" | "registration"
+
+
+class Assert:
+    @staticmethod
+    def Ignore(message: str):
+        pytest.skip(message)
+
+
+def _classify_screen(driver) -> str:
+    """One page_source read to tell which registration mode is active.
+
+    Registration markers stay scroll-proof: the confirm/create password labels
+    exist only on the registration form, so classification survives even when the
+    'Welcome to Shoppix!' heading has scrolled off-screen.
+    """
+    try:
+        src = (driver.page_source or "").lower()
+    except Exception:
+        return "unknown"
+    if "enter your postcode" in src or "thank you for your interest" in src:
+        return "waitlist"
+    if (
+        "confirm password" in src
+        or "confirm your password" in src
+        or "create your password" in src
+        or "welcome to shoppix" in src
+    ):
+        return "registration"
+    return "unknown"
+
+
+def _poll_classify(driver, timeout: float = 6.0) -> str:
+    """Poll page_source briefly until the screen can be classified."""
+    end = time.time() + timeout
+    mode = "unknown"
+    while time.time() < end:
+        mode = _classify_screen(driver)
+        if mode != "unknown":
+            return mode
+        time.sleep(0.4)
+    return mode
+
 
 def _quick_screen_state(driver) -> str:
     try:
@@ -22,14 +72,21 @@ def _quick_screen_state(driver) -> str:
     except Exception:
         return "unknown"
 
-    if "welcome to shoppix" in src and "confirm password" in src:
-        return "registration"
     if "welcome back!" in src or "enter your email" in src:
         return "login"
     if "let's get started" in src or "lets get started" in src or "let\u2019s get started" in src:
         return "welcome"
     if "menu_action_setting" in src or "img_header" in src:
         return "home"
+    # Registration before legal: the registration form itself contains the T&C /
+    # Privacy link text, so password markers must win to avoid a false "legal".
+    if (
+        "confirm password" in src
+        or "confirm your password" in src
+        or "create your password" in src
+        or "welcome to shoppix" in src
+    ):
+        return "registration"
     if "terms and conditions" in src or "privacy policy" in src:
         return "legal"
     return "unknown"
@@ -63,37 +120,79 @@ def _unique_email() -> str:
 
 
 def _ensure_registration_screen(driver):
+    global _ENV_MODE
     page = RegistrationPage(driver)
-    if page.is_registration_screen_visible(timeout=3):
+
+    # Fast skip: environment already classified as waiting-list this session.
+    if _ENV_MODE == "waitlist":
+        Assert.Ignore(REGISTRATION_SKIPPED_MESSAGE)
+
+    def _settle_on_registration() -> bool:
+        # Scroll back to the top so the heading check passes even if a previous
+        # scenario left the form scrolled down.
+        page.restore_registration_top(timeout=4)
+        if page.is_registration_screen_visible(timeout=3):
+            return True
+        return False
+
+    # Recover from whatever screen the previous scenario left behind, escalating
+    # effort and falling back to a relaunch so one bad state can't fail the rest.
+    for attempt in range(3):
+        mode = _classify_screen(driver)
+
+        if mode == "waitlist":
+            _ENV_MODE = "waitlist"
+            Assert.Ignore(REGISTRATION_SKIPPED_MESSAGE)
+
+        if mode == "registration" and _settle_on_registration():
+            _ENV_MODE = "registration"
+            return page
+
+        # Not on registration: move toward it from the current screen. Never back
+        # out when already on the registration form (classify handles that above).
+        state = _quick_screen_state(driver)
+        if state == "legal":
+            _safe_back(driver)
+        elif state == "home":
+            HomePage(driver).logout_from_menu()
+        elif state == "login":
+            try:
+                LoginPage(driver).tap_sign_up()
+            except Exception:
+                _safe_back(driver)
+                if WelcomePage(driver).is_welcome_visible(timeout=2):
+                    WelcomePage(driver).tap_email_registration_icon()
+        elif state == "welcome":
+            WelcomePage(driver).tap_email_registration_icon()
+        elif state != "registration":
+            # Unknown screen (next-step/dialog/webview): back out and re-enter.
+            _safe_back(driver)
+            if WelcomePage(driver).is_welcome_visible(timeout=2):
+                WelcomePage(driver).tap_email_registration_icon()
+
+        resolved = _poll_classify(driver, timeout=5)
+        if resolved == "waitlist":
+            _ENV_MODE = "waitlist"
+            Assert.Ignore(REGISTRATION_SKIPPED_MESSAGE)
+        if resolved == "registration" and _settle_on_registration():
+            _ENV_MODE = "registration"
+            return page
+
+        # Last-resort recovery before giving up: relaunch to a clean state.
+        if attempt == 2:
+            _soft_relaunch_app(driver)
+            if WelcomePage(driver).is_welcome_visible(timeout=6):
+                WelcomePage(driver).tap_email_registration_icon()
+            if _poll_classify(driver, timeout=6) == "waitlist":
+                _ENV_MODE = "waitlist"
+                Assert.Ignore(REGISTRATION_SKIPPED_MESSAGE)
+
+    if _settle_on_registration():
+        _ENV_MODE = "registration"
         return page
 
-    state = _quick_screen_state(driver)
-    if state == "legal":
-        _safe_back(driver)
-    elif state == "home":
-        HomePage(driver).logout_from_menu()
-    elif state == "login":
-        try:
-            LoginPage(driver).tap_sign_up()
-        except Exception:
-            _safe_back(driver)
-            if WelcomePage(driver).is_welcome_visible(timeout=3):
-                WelcomePage(driver).tap_email_registration_icon()
-    elif state == "welcome":
-        WelcomePage(driver).tap_email_registration_icon()
-
-    page.navigate_to_registration_if_needed()
-    if not page.is_registration_screen_visible(timeout=6):
-        if WelcomePage(driver).is_welcome_visible(timeout=3):
-            WelcomePage(driver).tap_email_registration_icon()
-
-    if not page.is_registration_screen_visible(timeout=6):
-        _soft_relaunch_app(driver)
-        page.navigate_to_registration_if_needed()
-        if WelcomePage(driver).is_welcome_visible(timeout=3):
-            WelcomePage(driver).tap_email_registration_icon()
-
-    assert page.is_registration_screen_visible(timeout=10), "Registration screen was not visible"
+    assert page.is_registration_screen_visible(timeout=6), "Registration screen was not visible"
+    _ENV_MODE = "registration"
     return page
 
 
